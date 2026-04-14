@@ -18,11 +18,12 @@ export type FleetState =
   | 'FailedPreparation';
 
 /**
- * Minimal fleet entity for persistence.
- * Candidates can extend with ships, loadout, reserved resources, etc.
+ * Fleet entity.
  */
 export interface Fleet extends VersionedEntity {
   name: string;
+  shipCount: number;
+  fuelRequired: number;
   state: FleetState;
 }
 

@@ -17,6 +17,8 @@ describe('createPersistenceContext', () => {
       id: 'f1',
       version: 1,
       name: 'Alpha',
+      shipCount: 10,
+      fuelRequired: 100,
       state: 'Docked',
     });
     expect(ctx1.fleets.get('f1')).toBeDefined();
@@ -29,6 +31,8 @@ describe('createPersistenceContext', () => {
       id: 'f1',
       version: 1,
       name: 'Alpha',
+      shipCount: 10,
+      fuelRequired: 100,
       state: 'Docked',
     });
     ctx.commands.create({
@@ -46,7 +50,7 @@ describe('createPersistenceContext', () => {
 describe('in-memory repository factories', () => {
   it('createInMemoryFleetRepository returns a repository that clears independently', () => {
     const repo = createInMemoryFleetRepository();
-    repo.create({ id: 'f1', version: 1, name: 'F1', state: 'Docked' });
+    repo.create({ id: 'f1', version: 1, name: 'F1', shipCount: 5, fuelRequired: 50, state: 'Docked' });
     repo.clear();
     expect(repo.get('f1')).toBeUndefined();
   });
