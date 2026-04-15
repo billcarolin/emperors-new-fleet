@@ -64,8 +64,8 @@ export function createCommandQueue(ctx: PersistenceContext): CommandQueue {
       const current = ctx.commands.getOrThrow(commandId);
       await handler(current, ctx);
       const done = ctx.commands.getOrThrow(commandId);
-      ctx.commands.update(commandId, done.version, (c) => ({ ...c, status: 'Succeeded' }));
-      cmdLog.info('command succeeded');
+      ctx.commands.update(commandId, done.version, (c) => ({ ...c, status: 'Completed' }));
+      cmdLog.info('command execution completed');
     } catch (err) {
       cmdLog.error({ err }, 'command handler threw an error — marking Failed');
       const done = ctx.commands.getOrThrow(commandId);

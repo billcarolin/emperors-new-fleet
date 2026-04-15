@@ -6,7 +6,7 @@ import type { Repository } from './InMemoryRepository';
 /**
  * Command lifecycle (see assignment).
  */
-export type CommandStatus = 'Queued' | 'Processing' | 'Succeeded' | 'Failed';
+export type CommandStatus = 'Queued' | 'Processing' | 'Completed' | 'Failed';
 
 /**
  * Minimal command entity for persistence.
