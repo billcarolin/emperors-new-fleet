@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Galactic Fleet Command — API Explorer</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    :root {
+      --bg:        #0b0b18;
+      --surface:   #13132b;
+      --surface2:  #1a1a38;
+      --surface3:  #21213f;
+      --border:    #2e2e5c;
+      --border2:   #3a3a70;
+      --text:      #dde2f4;
+      --text-dim:  #7b85aa;
+      --text-xs:   #565f8a;
+      --accent:    #818cf8;
+      --accent-dim:#3730a3;
+
+      --get:    #38bdf8;
+      --post:   #34d399;
+      --patch:  #fb923c;
+      --delete: #f87171;
+
+      --ok:  #4ade80;
+      --err: #f87171;
+      --warn:#fbbf24;
+
+      --radius: 8px;
+      --radius-sm: 4px;
+      --mono: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      --transition: 160ms ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Header ───────────────────────────────────────────────── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+    }
+    .header-inner {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      gap: 20px;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-icon {
+      font-size: 24px;
+      line-height: 1;
+    }
+    .header-brand h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: .3px;
+    }
+    .header-brand .tagline {
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+    .header-url {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 4px 12px;
+    }
+    .header-url-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; }
+    .header-url code  { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .layout {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 28px 28px 60px;
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    /* ── Info banner ──────────────────────────────────────────── */
+    .info-banner {
+      background: linear-gradient(135deg, #1a1a3e 0%, #1a2340 100%);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+    .info-banner strong { color: var(--text); }
+
+    /* ── Tag groups ───────────────────────────────────────────── */
+    .tag-group { margin-bottom: 28px; }
+    .tag-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tag-name { font-size: 15px; font-weight: 600; color: var(--text); }
+    .tag-desc { font-size: 12px; color: var(--text-dim); }
+    .tag-count {
+      font-size: 11px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: 20px;
+      padding: 1px 7px;
+    }
+
+    /* ── Endpoint card ────────────────────────────────────────── */
+    .endpoint-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 8px;
+      transition: border-color var(--transition);
+    }
+    .endpoint-card.expanded { border-color: var(--border2); }
+
+    .endpoint-row {
+      all: unset;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 11px 16px;
+      background: var(--surface);
+      transition: background var(--transition);
+    }
+    .endpoint-row:hover { background: var(--surface2); }
+    .endpoint-card.expanded .endpoint-row { background: var(--surface2); }
+
+    .method-badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      min-width: 56px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .method-get    { background: rgba(56,189,248,.15); color: var(--get);    border: 1px solid rgba(56,189,248,.3); }
+    .method-post   { background: rgba(52,211,153,.15); color: var(--post);   border: 1px solid rgba(52,211,153,.3); }
+    .method-patch  { background: rgba(251,146,60,.15);  color: var(--patch);  border: 1px solid rgba(251,146,60,.3); }
+    .method-delete { background: rgba(248,113,113,.15); color: var(--delete); border: 1px solid rgba(248,113,113,.3); }
+
+    .endpoint-path {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+    .endpoint-summary {
+      font-size: 13px;
+      color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .expand-icon {
+      margin-left: auto;
+      font-size: 18px;
+      color: var(--text-dim);
+      transition: transform var(--transition);
+      flex-shrink: 0;
+    }
+    .expand-icon.rotated { transform: rotate(90deg); }
+
+    /* ── Endpoint body ────────────────────────────────────────── */
+    .endpoint-body {
+      background: var(--bg);
+      padding: 20px 20px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .endpoint-description {
+      color: var(--text-dim);
+      font-size: 13px;
+      margin-bottom: 20px;
+      line-height: 1.7;
+    }
+
+    /* ── Param sections ───────────────────────────────────────── */
+    .param-section { margin-bottom: 20px; }
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .param-row {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .param-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .param-name {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: var(--radius-sm);
+    }
+    .param-required { font-size: 10px; color: var(--err);    background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); padding: 1px 5px; border-radius: 3px; }
+    .param-optional { font-size: 10px; color: var(--text-dim); background: var(--surface2); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; }
+    .param-type     { font-size: 10px; color: var(--accent); background: rgba(129,140,248,.1); border: 1px solid rgba(129,140,248,.3); padding: 1px 5px; border-radius: 3px; }
+    .param-desc     { font-size: 12px; color: var(--text-dim); }
+
+    .param-input, .param-select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--mono);
+      padding: 7px 10px;
+      outline: none;
+      width: 100%;
+      transition: border-color var(--transition);
+    }
+    .param-input:focus, .param-select:focus { border-color: var(--accent); }
+    .param-input::placeholder { color: var(--text-xs); }
+    select.param-input { cursor: pointer; }
+
+    /* ── Actions ──────────────────────────────────────────────── */
+    .action-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .btn {
+      all: unset;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      transition: all var(--transition);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) { background: #6366f1; }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+    }
+    .btn-secondary:hover { background: var(--surface3); }
+    .btn-ghost {
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--err); border-color: var(--err); }
+
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Response panel ───────────────────────────────────────── */
+    .response-panel {
+      margin-top: 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .response-header {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .response-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .7px; color: var(--text-dim); }
+    .status-badge {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+    }
+    .status-2xx { background: rgba(74,222,128,.15);  color: var(--ok);   border: 1px solid rgba(74,222,128,.3); }
+    .status-4xx { background: rgba(248,113,113,.15); color: var(--err);  border: 1px solid rgba(248,113,113,.3); }
+    .status-5xx { background: rgba(248,113,113,.15); color: var(--err);  border: 1px solid rgba(248,113,113,.3); }
+    .status-0xx { background: rgba(251,191,36,.15);  color: var(--warn); border: 1px solid rgba(251,191,36,.3); }
+
+    .response-body {
+      background: #080810;
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.7;
+      overflow-x: auto;
+      white-space: pre;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .j-key    { color: #93c5fd; }
+    .j-str    { color: #86efac; }
+    .j-num    { color: #fdba74; }
+    .j-bool   { color: #c4b5fd; }
+    .j-null   { color: #f87171; }
+    .j-punct  { color: #64748b; }
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+    .sidebar { position: sticky; top: 88px; }
+    .sidebar-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+    .sidebar-empty {
+      font-size: 12px;
+      color: var(--text-xs);
+      font-style: italic;
+    }
+
+    .recent-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .recent-item:last-child { border-bottom: none; }
+    .recent-info { min-width: 0; }
+    .recent-name { display: block; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .recent-id   { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+    .recent-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .btn-icon {
+      all: unset;
+      cursor: pointer;
+      width: 24px; height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-dim);
+      transition: all var(--transition);
+    }
+    .btn-icon:hover { background: var(--surface3); color: var(--text); border-color: var(--border2); }
+
+    .workflow-steps {
+      list-style: none;
+      counter-reset: step;
+    }
+    .workflow-steps li {
+      counter-increment: step;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+    .workflow-steps li::before {
+      content: counter(step);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px; height: 18px;
+      background: var(--accent-dim);
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .workflow-steps li code {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 0 4px;
+      border-radius: 3px;
+      color: var(--text);
+    }
+    .workflow-steps li strong { color: var(--ok); }
+
+    /* ── State chip ───────────────────────────────────────────── */
+    .state-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .state-chip {
+      font-size: 11px;
+      font-family: var(--mono);
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid;
+    }
+    .chip-docked     { color: #94a3b8; border-color: #475569; background: rgba(71,85,105,.2); }
+    .chip-preparing  { color: #fbbf24; border-color: #92400e; background: rgba(146,64,14,.2); }
+    .chip-ready      { color: #4ade80; border-color: #166534; background: rgba(22,101,52,.2); }
+    .chip-deployed   { color: #818cf8; border-color: #3730a3; background: rgba(55,48,163,.2); }
+    .chip-failed     { color: #f87171; border-color: #7f1d1d; background: rgba(127,29,29,.2); }
+
+    /* ── Toast ────────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      z-index: 1000;
+      animation: fadeInOut 2s ease forwards;
+    }
+    @keyframes fadeInOut {
+      0%   { opacity: 0; transform: translateX(-50%) translateY(8px); }
+      15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+      75%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* ── Scrollbar ────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <span class="header-icon">🚀</span>
+        <div>
+          <h1>Galactic Fleet Command</h1>
+          <p class="tagline">API Explorer &mdash; v0.1.0</p>
+        </div>
+      </div>
+      <div class="header-url">
+        <span class="header-url-label">Base URL</span>
+        <code>{{ baseUrl }}</code>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- Main -->
+    <main>
+      <div class="info-banner">
+        <span>ℹ️</span>
+        <span>
+          Interactive explorer for the Galactic Fleet Command API.
+          Click an endpoint to expand it, hit <strong>Fill Sample</strong> to pre-load example data,
+          then <strong>Execute</strong> to make live requests. Created fleet and command IDs appear
+          in the sidebar for easy chaining.
+        </span>
+      </div>
+
+      <!-- Fleet states legend -->
+      <div class="tag-group">
+        <div class="tag-header">
+          <span class="tag-name">Fleet Lifecycle</span>
+        </div>
+        <div class="state-chips">
+          <span class="state-chip chip-docked">Docked</span>
+          <span style="color:var(--text-dim);align-self:center;font-size:13px">→</span>
+          <span class="state-chip chip-preparing">Preparing</span>
+          <span style="color:var(--text-dim);align-self:center;font-size:13px">→</span>
+          <span class="state-chip chip-ready">Ready</span>
+          <span style="color:var(--text-dim);align-self:center;font-size:13px">→</span>
+          <span class="state-chip chip-deployed">Deployed</span>
+          <span style="color:var(--text-dim);align-self:center;font-size:20px;margin:0 8px">|</span>
+          <span class="state-chip chip-preparing">Preparing</span>
+          <span style="color:var(--text-dim);align-self:center;font-size:13px">→</span>
+          <span class="state-chip chip-failed">FailedPreparation</span>
+        </div>
+      </div>
+
+      <!-- Endpoint groups -->
+      <div v-for="group in groups" :key="group.tag" class="tag-group">
+        <div class="tag-header">
+          <span class="tag-name">{{ group.tag }}</span>
+          <span class="tag-count">{{ group.endpoints.length }}</span>
+          <span class="tag-desc">{{ group.description }}</span>
+        </div>
+
+        <div v-for="ep in group.endpoints" :key="ep.id" class="endpoint-card" :class="{ expanded: states[ep.id].expanded }">
+          <!-- Row -->
+          <button class="endpoint-row" @click="toggle(ep.id)">
+            <span class="method-badge" :class="`method-${ep.method.toLowerCase()}`">{{ ep.method }}</span>
+            <span class="endpoint-path">{{ ep.path }}</span>
+            <span class="endpoint-summary">{{ ep.summary }}</span>
+            <span class="expand-icon" :class="{ rotated: states[ep.id].expanded }">›</span>
+          </button>
+
+          <!-- Expanded body -->
+          <div v-if="states[ep.id].expanded" class="endpoint-body">
+            <p class="endpoint-description">{{ ep.description }}</p>
+
+            <!-- Path params -->
+            <div v-if="ep.pathParams && ep.pathParams.length" class="param-section">
+              <h4 class="section-label">Path Parameters</h4>
+              <div v-for="p in ep.pathParams" :key="p.name" class="param-row">
+                <div class="param-meta">
+                  <code class="param-name">{{ p.name }}</code>
+                  <span class="param-required">required</span>
+                  <span class="param-desc">{{ p.description }}</span>
+                </div>
+                <input
+                  v-model="states[ep.id].path[p.name]"
+                  class="param-input"
+                  :placeholder="p.placeholder || p.name"
+                />
+              </div>
+            </div>
+
+            <!-- Query params -->
+            <div v-if="ep.queryParams && ep.queryParams.length" class="param-section">
+              <h4 class="section-label">Query Parameters</h4>
+              <div v-for="p in ep.queryParams" :key="p.name" class="param-row">
+                <div class="param-meta">
+                  <code class="param-name">{{ p.name }}</code>
+                  <span class="param-optional">optional</span>
+                  <span class="param-type">string (ISO-8601)</span>
+                  <span class="param-desc">{{ p.description }}</span>
+                </div>
+                <input
+                  v-model="states[ep.id].query[p.name]"
+                  class="param-input"
+                  :placeholder="p.placeholder"
+                />
+              </div>
+            </div>
+
+            <!-- Body fields -->
+            <div v-if="ep.bodyFields && ep.bodyFields.length" class="param-section">
+              <h4 class="section-label">Request Body</h4>
+              <div v-for="f in ep.bodyFields" :key="f.name" class="param-row">
+                <div class="param-meta">
+                  <code class="param-name">{{ displayName(f.name) }}</code>
+                  <span :class="f.required ? 'param-required' : 'param-optional'">{{ f.required ? 'required' : 'optional' }}</span>
+                  <span class="param-type">{{ f.type }}</span>
+                  <span class="param-desc">{{ f.description }}</span>
+                </div>
+                <select v-if="f.type === 'select'" v-model="states[ep.id].body[f.name]" class="param-input">
+                  <option v-for="opt in f.options" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
+                <input
+                  v-else
+                  v-model="states[ep.id].body[f.name]"
+                  class="param-input"
+                  :type="f.type === 'number' ? 'number' : 'text'"
+                  :placeholder="f.placeholder !== undefined ? String(f.placeholder) : ''"
+                />
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="action-row">
+              <button v-if="hasSample(ep)" class="btn btn-secondary" @click="fillSample(ep)">
+                ✦ Fill Sample
+              </button>
+              <button class="btn btn-primary" :disabled="states[ep.id].loading" @click="execute(ep)">
+                <span v-if="states[ep.id].loading" class="spinner"></span>
+                {{ states[ep.id].loading ? 'Executing…' : '▶ Execute' }}
+              </button>
+              <button v-if="states[ep.id].response" class="btn btn-ghost" @click="states[ep.id].response = null">
+                ✕ Clear
+              </button>
+            </div>
+
+            <!-- Response -->
+            <div v-if="states[ep.id].response" class="response-panel">
+              <div class="response-header">
+                <span class="response-label">Response</span>
+                <span class="status-badge" :class="statusClass(states[ep.id].response.status)">
+                  {{ states[ep.id].response.status || 'Error' }}
+                </span>
+              </div>
+              <pre class="response-body" v-html="highlight(states[ep.id].response.data)"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+      <!-- Recent fleet IDs -->
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">Recent Fleet IDs</h3>
+        <p v-if="!recentFleets.length" class="sidebar-empty">Create a fleet to see IDs here.</p>
+        <div v-for="f in recentFleets" :key="f.id" class="recent-item">
+          <div class="recent-info">
+            <span class="recent-name">{{ f.name }}</span>
+            <code class="recent-id">{{ f.id.slice(0, 12) }}…</code>
+          </div>
+          <div class="recent-actions">
+            <button class="btn-icon" title="Use fleet ID in relevant fields" @click="useFleetId(f.id)">↗</button>
+            <button class="btn-icon" title="Copy full ID" @click="copy(f.id)">⎘</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent command IDs -->
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">Recent Command IDs</h3>
+        <p v-if="!recentCommands.length" class="sidebar-empty">Submit a command to see IDs here.</p>
+        <div v-for="c in recentCommands" :key="c.id" class="recent-item">
+          <div class="recent-info">
+            <span class="recent-name">{{ c.type }}</span>
+            <code class="recent-id">{{ c.id.slice(0, 12) }}…</code>
+          </div>
+          <div class="recent-actions">
+            <button class="btn-icon" title="Use in GET /commands/:id" @click="useCommandId(c.id)">↗</button>
+            <button class="btn-icon" title="Copy full ID" @click="copy(c.id)">⎘</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Workflow guide -->
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">Quick Workflow</h3>
+        <ol class="workflow-steps">
+          <li>Create a fleet via <code>POST /fleets</code></li>
+          <li>Use <strong>↗</strong> to populate the fleet ID</li>
+          <li>Submit <code>PrepareFleet</code> command</li>
+          <li>Poll <code>GET /commands/:id</code> until <strong>Succeeded</strong></li>
+          <li>Fleet is now <strong>Ready</strong></li>
+          <li>Submit <code>DeployFleet</code> to launch</li>
+          <li>Browse all events in <code>GET /history</code></li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Toast -->
+  <div v-if="toast" class="toast">{{ toast }}</div>
+</div>
+
+<script>
+const { createApp, ref, reactive, computed } = Vue;
+
+// ── Endpoint definitions ──────────────────────────────────────
+const GROUPS = [
+  {
+    tag: 'System',
+    description: 'Health and operational status',
+    endpoints: [
+      {
+        id: 'health',
+        method: 'GET',
+        path: '/health',
+        summary: 'Service health check',
+        description: 'Returns the operational status of the Galactic Fleet Command API. Use this to verify the service is running.',
+      },
+    ],
+  },
+  {
+    tag: 'Fleets',
+    description: 'Create and manage fleets',
+    endpoints: [
+      {
+        id: 'create-fleet',
+        method: 'POST',
+        path: '/fleets',
+        summary: 'Create a fleet',
+        description: 'Creates a new fleet in Docked state. A fleet must be prepared via a PrepareFleet command before it can be deployed.',
+        bodyFields: [
+          { name: 'name',         type: 'string', required: true,  description: 'Fleet name',               placeholder: 'Iron Nebula',  sample: 'Iron Nebula' },
+          { name: 'shipCount',    type: 'number', required: true,  description: 'Number of ships in fleet', placeholder: 12,             sample: 12 },
+          { name: 'fuelRequired', type: 'number', required: true,  description: 'Fuel units required',      placeholder: 500,            sample: 500 },
+        ],
+      },
+      {
+        id: 'get-fleet',
+        method: 'GET',
+        path: '/fleets/:id',
+        summary: 'Get a fleet',
+        description: 'Retrieves a fleet by ID, including its current state, ship count, and fuel requirement.',
+        pathParams: [
+          { name: 'id', description: 'Fleet UUID', placeholder: 'paste fleet ID here' },
+        ],
+      },
+      {
+        id: 'patch-fleet',
+        method: 'PATCH',
+        path: '/fleets/:id',
+        summary: 'Update fleet properties',
+        description: 'Updates mutable fleet properties. State transitions are managed exclusively through commands — this endpoint does not accept a state field.',
+        pathParams: [
+          { name: 'id', description: 'Fleet UUID', placeholder: 'paste fleet ID here' },
+        ],
+        bodyFields: [
+          { name: 'name',         type: 'string', required: false, description: 'New fleet name',         placeholder: 'Iron Nebula II', sample: 'Iron Nebula II' },
+          { name: 'shipCount',    type: 'number', required: false, description: 'Updated ship count',     placeholder: 15,              sample: 15 },
+          { name: 'fuelRequired', type: 'number', required: false, description: 'Updated fuel requirement', placeholder: 600,           sample: 600 },
+        ],
+      },
+    ],
+  },
+  {
+    tag: 'Commands',
+    description: 'Submit and inspect asynchronous commands',
+    endpoints: [
+      {
+        id: 'create-command',
+        method: 'POST',
+        path: '/commands',
+        summary: 'Submit a command',
+        description: 'Enqueues a command for asynchronous processing by the background worker. Commands drive fleet state transitions. Poll GET /commands/:id to observe the result.',
+        bodyFields: [
+          {
+            name: 'type',
+            type: 'select',
+            required: true,
+            description: 'Command type',
+            options: ['PrepareFleet', 'DeployFleet'],
+            sample: 'PrepareFleet',
+          },
+          {
+            name: 'payload.fleetId',
+            type: 'string',
+            required: true,
+            description: 'Target fleet UUID',
+            placeholder: 'paste fleet ID here',
+          },
+        ],
+      },
+      {
+        id: 'get-command',
+        method: 'GET',
+        path: '/commands/:id',
+        summary: 'Get command status',
+        description: 'Retrieves a command by ID. Poll this endpoint until status is Succeeded or Failed to observe the outcome of an asynchronous command.',
+        pathParams: [
+          { name: 'id', description: 'Command UUID', placeholder: 'paste command ID here' },
+        ],
+      },
+    ],
+  },
+  {
+    tag: 'History',
+    description: 'Fleet state transition audit log',
+    endpoints: [
+      {
+        id: 'get-history',
+        method: 'GET',
+        path: '/history',
+        summary: 'Fleet transition history',
+        description: 'Returns all fleet state transition records across all fleets, ordered by time. Each record includes fleet identity, the transition (fromState → toState), a resource pool snapshot at the moment of the change, and an ISO-8601 timestamp. Optionally filter by time window.',
+        queryParams: [
+          {
+            name: 'from',
+            description: 'Include records with timestamp ≥ this value',
+            placeholder: '2025-01-01T00:00:00.000Z',
+            sample: () => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          },
+          {
+            name: 'to',
+            description: 'Include records with timestamp ≤ this value',
+            placeholder: new Date().toISOString(),
+            sample: () => new Date().toISOString(),
+          },
+        ],
+      },
+    ],
+  },
+];
+
+// ── Utilities ─────────────────────────────────────────────────
+function setNested(obj, path, value) {
+  const parts = path.split('.');
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!cur[parts[i]]) cur[parts[i]] = {};
+    cur = cur[parts[i]];
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+
+function displayName(dotPath) {
+  return dotPath.replace(/\./g, ' › ');
+}
+
+function highlightJson(data) {
+  const json = JSON.stringify(data, null, 2)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return json.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|[{}[\],:])/g,
+    (match) => {
+      if (/^"/.test(match)) {
+        return /:$/.test(match)
+          ? `<span class="j-key">${match}</span>`
+          : `<span class="j-str">${match}</span>`;
+      }
+      if (/true|false/.test(match)) return `<span class="j-bool">${match}</span>`;
+      if (/null/.test(match))       return `<span class="j-null">${match}</span>`;
+      if (/[{}[\],:]/.test(match))  return `<span class="j-punct">${match}</span>`;
+      return `<span class="j-num">${match}</span>`;
+    }
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────
+createApp({
+  setup() {
+    const baseUrl = window.location.origin;
+    const recentFleets   = ref([]);
+    const recentCommands = ref([]);
+    const toast          = ref(null);
+    let   toastTimer     = null;
+
+    // Build per-endpoint state
+    const states = reactive({});
+    for (const group of GROUPS) {
+      for (const ep of group.endpoints) {
+        const path  = {};
+        const query = {};
+        const body  = {};
+        (ep.pathParams  || []).forEach(p => { path[p.name]  = ''; });
+        (ep.queryParams || []).forEach(p => { query[p.name] = ''; });
+        (ep.bodyFields  || []).forEach(f => {
+          body[f.name] = f.type === 'select' ? (f.options?.[0] ?? '') : '';
+        });
+        states[ep.id] = { expanded: false, loading: false, response: null, path, query, body };
+      }
+    }
+
+    function toggle(id) {
+      states[id].expanded = !states[id].expanded;
+    }
+
+    function hasSample(ep) {
+      return (ep.pathParams  || []).some(p => p.sample !== undefined) ||
+             (ep.queryParams || []).some(p => p.sample !== undefined) ||
+             (ep.bodyFields  || []).some(f => f.sample !== undefined);
+    }
+
+    function fillSample(ep) {
+      const s = states[ep.id];
+      (ep.pathParams  || []).forEach(p => {
+        if (p.sample !== undefined) s.path[p.name]  = String(p.sample);
+      });
+      (ep.queryParams || []).forEach(p => {
+        const v = typeof p.sample === 'function' ? p.sample() : p.sample;
+        if (v !== undefined) s.query[p.name] = String(v);
+      });
+      (ep.bodyFields  || []).forEach(f => {
+        if (f.sample !== undefined) s.body[f.name] = String(f.sample);
+      });
+    }
+
+    async function execute(ep) {
+      const s = states[ep.id];
+      s.loading  = true;
+      s.response = null;
+
+      // Build URL
+      let url = ep.path;
+      for (const [k, v] of Object.entries(s.path)) {
+        url = url.replace(`:${k}`, encodeURIComponent(v));
+      }
+      const qp = new URLSearchParams();
+      for (const [k, v] of Object.entries(s.query)) {
+        if (v) qp.set(k, v);
+      }
+      const qs = qp.toString();
+      if (qs) url += '?' + qs;
+
+      // Build body
+      let bodyStr;
+      if (ep.bodyFields && ep.bodyFields.length) {
+        const obj = {};
+        for (const f of ep.bodyFields) {
+          const raw = s.body[f.name];
+          if (raw === '' || raw === undefined || raw === null) continue;
+          const value = f.type === 'number' ? Number(raw) : raw;
+          setNested(obj, f.name, value);
+        }
+        bodyStr = JSON.stringify(obj);
+      }
+
+      try {
+        const res = await fetch(url, {
+          method: ep.method,
+          headers: bodyStr ? { 'Content-Type': 'application/json' } : {},
+          body: bodyStr,
+        });
+
+        let data;
+        const ct = res.headers.get('content-type') || '';
+        data = ct.includes('application/json') ? await res.json() : { raw: await res.text() };
+
+        s.response = { status: res.status, ok: res.ok, data };
+
+        // Track IDs
+        if (ep.id === 'create-fleet' && data.id) {
+          recentFleets.value.unshift({ id: data.id, name: data.name });
+          if (recentFleets.value.length > 8) recentFleets.value.pop();
+        }
+        if (ep.id === 'create-command' && data.id) {
+          recentCommands.value.unshift({ id: data.id, type: data.type });
+          if (recentCommands.value.length > 8) recentCommands.value.pop();
+        }
+      } catch (err) {
+        s.response = { status: 0, ok: false, data: { error: err.message } };
+      } finally {
+        s.loading = false;
+      }
+    }
+
+    function useFleetId(id) {
+      if (states['get-fleet'])    states['get-fleet'].path['id']           = id;
+      if (states['patch-fleet'])  states['patch-fleet'].path['id']         = id;
+      if (states['create-command']) states['create-command'].body['payload.fleetId'] = id;
+      showToast('Fleet ID populated ↗');
+    }
+
+    function useCommandId(id) {
+      if (states['get-command']) states['get-command'].path['id'] = id;
+      showToast('Command ID populated ↗');
+    }
+
+    function copy(text) {
+      navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard'));
+    }
+
+    function showToast(msg) {
+      if (toastTimer) clearTimeout(toastTimer);
+      toast.value = null;
+      // Force re-render by using nextTick-ish trick
+      setTimeout(() => {
+        toast.value = msg;
+        toastTimer = setTimeout(() => { toast.value = null; }, 2000);
+      }, 10);
+    }
+
+    function statusClass(status) {
+      if (status === 0)           return 'status-0xx';
+      if (status >= 200 && status < 300) return 'status-2xx';
+      if (status >= 400 && status < 500) return 'status-4xx';
+      return 'status-5xx';
+    }
+
+    function highlight(data) {
+      return highlightJson(data);
+    }
+
+    return {
+      baseUrl,
+      groups: GROUPS,
+      states,
+      recentFleets,
+      recentCommands,
+      toast,
+      toggle,
+      hasSample,
+      fillSample,
+      execute,
+      useFleetId,
+      useCommandId,
+      copy,
+      statusClass,
+      highlight,
+      displayName,
+    };
+  },
+}).mount('#app');
+</script>
+</body>
+</html>
