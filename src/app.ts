@@ -1,4 +1,5 @@
 import express from 'express';
+import { join } from 'path';
 
 import type { PersistenceContext } from './persistence/context';
 import type { CommandQueue } from './queue/types';
@@ -18,6 +19,9 @@ export function createApp(ctx: PersistenceContext, queue: CommandQueue) {
   app.use('/fleets', createFleetRouter(ctx));
   app.use('/commands', createCommandRouter(ctx, queue));
   app.use('/history', createHistoryRouter(ctx));
+
+  // Serve the API Explorer UI at /
+  app.use(express.static(join(process.cwd(), 'public')));
 
   return app;
 }

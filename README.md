@@ -1,150 +1,284 @@
 # Galactic Fleet Command
 
-## Overview
+A backend service for managing fleets in a fictional galactic command system. Fleets move through a lifecycle driven by asynchronous commands, and shared fuel resources are allocated safely under concurrent access.
 
-You are building a backend service for managing fleets in a fictional galactic command system. This system models fleets, processes commands asynchronously, and ensures that shared resources are allocated safely under concurrent conditions.
+---
 
-This exercise is designed to evaluate how you model systems, handle concurrency, design APIs, and make practical engineering tradeoffs.
+## Running the service
 
-## Time Expectation
+**Prerequisites:** Node.js ≥ 20
 
-This assignment is intended to take approximately 4-8 hours.
+```bash
+npm install
+npm run dev        # development — ts-node-dev, auto-restarts on save
+```
 
-You are not expected to complete everything perfectly. Partial completion is acceptable as long as you document your decisions and tradeoffs.
+```bash
+npm run build      # compile TypeScript → dist/
+npm start          # run compiled output
+```
 
-## Tech Stack
+The API listens on port **3000** by default. Set the `PORT` environment variable to override.
 
-Node.js and TypeScript plumbing have been included for you. If you prefer a different stack feel free to rebuild the base plumbing in your desired stack.  
-Use in-memory storage only (no database required).  
-You may use any libraries you feel are appropriate.
+```bash
+PORT=8080 npm run dev
+```
 
-## Domain Model
+### API Explorer
 
-Each fleet has a lifecycle:
+Opening `http://localhost:3000` in a browser loads the interactive API Explorer — a Vue.js UI that wraps every endpoint with forms, sample data, and live request execution.
 
-Docked → Preparing → Ready → Deployed  
-Preparing → FailedPreparation
+### Running tests
 
-Rules:
+```bash
+npm test
+```
 
-- Only fleets in Docked state can begin preparation
-- A fleet must successfully reserve resources before becoming Ready
-- If resource reservation fails, the fleet transitions to FailedPreparation
-- Only Ready fleets can be deployed
+65 tests across unit, integration, and end-to-end suites.
 
-A fleet should include at minimum:
+---
 
-- id
-- name
-- shipCount
-- fuelRequired
-- state
+## API Reference
 
-## Shared Resources
+Base URL: `http://localhost:3000`
 
-Assume a shared pool of resources (e.g., fuel).
+All request and response bodies are JSON. Error responses have the shape `{ "error": "..." }`.
 
-Multiple fleets may attempt to reserve resources at the same time. Your system must ensure that resources are never over-allocated, even under concurrent requests.
+---
 
-## Commands
+### System
 
-Commands represent actions performed on fleets and are processed asynchronously.
+#### `GET /health`
 
-Required command:
+Returns the service status.
 
-PrepareFleetCommand
+**Response `200`**
+```json
+{ "status": "ok" }
+```
 
-- Transitions fleet from Docked → Preparing
-- Attempts to reserve resources
-- On success → Ready
-- On failure → FailedPreparation
+---
 
-Each command should have a status:
+### Fleets
 
-- Queued
-- Processing
-- Succeeded
-- Failed
+#### `POST /fleets`
 
-## Queue
+Creates a new fleet in `Docked` state.
 
-Implement a simple in-memory queue:
+**Request body**
 
-- Commands are submitted via API
-- A background worker processes commands asynchronously
-- One worker is sufficient
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | ✓ | Fleet name |
+| `shipCount` | number | ✓ | Number of ships (≥ 1) |
+| `fuelRequired` | number | ✓ | Fuel units needed for preparation (≥ 0) |
 
-Out of scope:
+**Response `201`**
+```json
+{
+  "id": "a1b2c3d4-...",
+  "version": 0,
+  "name": "Iron Nebula",
+  "shipCount": 12,
+  "fuelRequired": 500,
+  "state": "Docked"
+}
+```
 
-- Dead-letter queues
-- Retry backoff strategies
-- Scheduling or delayed execution
-- Durable persistence
+**Errors:** `400` — missing or invalid fields.
 
-## API
+---
 
-Fleets:
+#### `GET /fleets/:id`
 
-POST /fleets — create a fleet  
-GET /fleets/:id — retrieve a fleet  
-PATCH /fleets/:id — update fleet properties
+Retrieves a fleet by ID.
 
-Commands:
+**Response `200`** — fleet object (same shape as above).
 
-POST /commands — submit a command  
-GET /commands/:id — retrieve command status
+**Errors:** `404` — fleet not found.
 
-System:
+---
 
-GET /health — health check
+#### `PATCH /fleets/:id`
 
-## Concurrency Requirement
+Updates mutable fleet properties. All fields are optional; omitted fields are unchanged. State is managed exclusively by commands and cannot be set here.
 
-Your system must correctly handle concurrent resource reservations.
+**Request body**
 
-Example: two commands attempt to reserve resources at the same time. Your system must ensure that resources are not double-allocated.
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | New fleet name |
+| `shipCount` | number | Updated ship count (≥ 1) |
+| `fuelRequired` | number | Updated fuel requirement (≥ 0) |
 
-You may use any reasonable approach such as locks, mutexes, or other in-memory coordination strategies.
+**Response `200`** — updated fleet object.
 
-## Data Storage
+**Errors:** `400` invalid field value, `404` fleet not found.
 
-Use in-memory data structures such as maps or arrays. No database is required.
+---
 
-## Testing
+### Commands
 
-At minimum, include tests for:
+Commands are processed asynchronously by a background worker. Submit a command and then poll `GET /commands/:id` until the status reaches `Succeeded` or `Failed`.
 
-- Valid and invalid fleet state transitions
-- Resource reservation under concurrent conditions
-- One end-to-end flow (API → command → state change)
+**Command statuses:** `Queued` → `Processing` → `Succeeded` | `Failed`
 
-## What We Care About
+#### `POST /commands`
 
-- Code clarity and structure
-- Correctness of business logic
-- Concurrency handling
-- API design
-- Thoughtful tradeoffs
+Submits a command for processing.
 
-## What We Do Not Expect
+**Request body**
 
-- Production-grade queue systems
-- Advanced retry frameworks
-- Full event sourcing implementations
-- Complex infrastructure
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✓ | `PrepareFleet` or `DeployFleet` |
+| `payload` | object | ✓ | Command-specific parameters (see below) |
 
-## Bonus (Optional)
+**`PrepareFleet` payload**
 
-- Additional commands (e.g., DeployFleetCommand)
-- Timeline/history of fleet transitions
-- Logging or metrics
-- Improved error handling
+```json
+{ "fleetId": "<fleet-id>" }
+```
 
-## Submission
+Transitions the fleet `Docked → Preparing`, attempts to reserve fuel from the shared pool, then moves to `Ready` on success or `FailedPreparation` if fuel is insufficient.
 
-Please include your source code and a short README describing:
+**`DeployFleet` payload**
 
-- Design decisions
-- Tradeoffs
-- What you would improve with more time
+```json
+{ "fleetId": "<fleet-id>" }
+```
 
+Transitions the fleet `Ready → Deployed`.
+
+**Response `201`**
+```json
+{
+  "id": "e5f6a7b8-...",
+  "version": 0,
+  "type": "PrepareFleet",
+  "status": "Queued",
+  "payload": { "fleetId": "a1b2c3d4-..." }
+}
+```
+
+**Errors:** `400` — unknown command type or invalid payload.
+
+---
+
+#### `GET /commands/:id`
+
+Retrieves a command and its current status.
+
+**Response `200`** — command object (same shape as above, with updated `status`).
+
+**Errors:** `404` — command not found.
+
+---
+
+### History
+
+#### `GET /history`
+
+Returns the complete fleet state transition log across all fleets, in insertion order. Each record is written immediately after a transition occurs and includes a point-in-time snapshot of all resource pools.
+
+**Query parameters** (both optional)
+
+| Parameter | Type | Description |
+|---|---|---|
+| `from` | ISO-8601 string | Include records with `timestamp >= from` |
+| `to` | ISO-8601 string | Include records with `timestamp <= to` |
+
+**Example**
+```
+GET /history?from=2025-01-01T00:00:00.000Z&to=2025-12-31T23:59:59.999Z
+```
+
+**Response `200`**
+```json
+[
+  {
+    "id": "c9d0e1f2-...",
+    "timestamp": "2025-06-15T10:23:45.123Z",
+    "fleetId": "a1b2c3d4-...",
+    "fleetName": "Iron Nebula",
+    "shipCount": 12,
+    "fuelRequired": 500,
+    "fromState": "Docked",
+    "toState": "Preparing",
+    "resources": [
+      {
+        "resourceType": "FUEL",
+        "total": 10000,
+        "reserved": 0,
+        "available": 10000
+      }
+    ]
+  },
+  {
+    "id": "d1e2f3a4-...",
+    "timestamp": "2025-06-15T10:23:45.130Z",
+    "fleetId": "a1b2c3d4-...",
+    "fleetName": "Iron Nebula",
+    "shipCount": 12,
+    "fuelRequired": 500,
+    "fromState": "Preparing",
+    "toState": "Ready",
+    "resources": [
+      {
+        "resourceType": "FUEL",
+        "total": 10000,
+        "reserved": 500,
+        "available": 9500
+      }
+    ]
+  }
+]
+```
+
+**Errors:** `400` — invalid `from`/`to` date string, or `from` is after `to`.
+
+---
+
+## Fleet lifecycle
+
+```
+Docked
+  └─► Preparing
+        ├─► Ready
+        │     └─► Deployed
+        └─► FailedPreparation
+```
+
+| Transition | Trigger | Condition |
+|---|---|---|
+| Docked → Preparing | `PrepareFleet` command | Fleet must be `Docked` |
+| Preparing → Ready | `PrepareFleet` (success) | Fuel pool has sufficient available units |
+| Preparing → FailedPreparation | `PrepareFleet` (failure) | Insufficient fuel or no pool seeded |
+| Ready → Deployed | `DeployFleet` command | Fleet must be `Ready` |
+
+---
+
+## Design decisions
+
+**Optimistic locking for concurrency.** Every entity carries a `version` field. Repository `update()` checks the version before writing and throws `ConcurrencyError` on mismatch. The fuel reservation loop retries on `ConcurrencyError`, making it safe to add multiple workers without changing the core logic.
+
+**Separate history repository.** The `Fleet` entity is unchanged by the history feature. A dedicated `FleetHistoryRepository` (append-only, time-range queryable) is written to after every transition via a single `recordTransition()` helper, ensuring no call site can accidentally skip recording.
+
+**Single background worker.** Commands are processed one at a time by a `setImmediate`-driven drain loop. The queue is FIFO; no scheduling, retry backoff, or dead-letter handling was implemented (out of scope per spec).
+
+**Resource seeding at startup.** `src/index.ts` seeds a 10 000-unit FUEL pool on boot. Additional resource types (`HYPERDRIVE_CORE`, `BATTLE_DROIDS`) are defined in the domain but not seeded — they are available to extend without code changes.
+
+## Tradeoffs
+
+- **In-memory only.** All state is lost on restart. Acceptable for this scope; a real system would back repositories with a database.
+- **Single worker = sequential processing.** Eliminates most concurrency risk at the cost of throughput. The optimistic locking layer means scaling to multiple workers requires only removing the single-worker constraint, not rearchitecting the storage layer.
+- **No authentication.** All endpoints are unauthenticated. A real deployment would add API keys or JWT middleware.
+
+## What I would improve with more time
+
+- Persist state to a real database (PostgreSQL with transactions would replace optimistic locking naturally)
+- Add retry backoff and a dead-letter queue for failed commands
+- Expose resource pool seeding via API rather than hardcoding at startup
+- Add structured logging (correlation IDs, command lifecycle events)
+- Add pagination to `GET /history`
+- OpenAPI / JSON Schema spec generated from the TypeScript types
