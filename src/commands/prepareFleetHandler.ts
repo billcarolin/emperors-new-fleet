@@ -8,10 +8,17 @@ import { logger } from '../logger';
 
 const MAX_RESERVATION_RETRIES = 5;
 
+type ReservationResult =
+  | { reserved: true }
+  | { reserved: false; reason: string };
+
 /**
  * Handles PrepareFleetCommand:
  *   Docked → Preparing → Ready        (fuel reserved successfully)
  *   Docked → Preparing → FailedPreparation  (insufficient fuel or pool missing)
+ *
+ * Throws when the fleet ends in FailedPreparation so the command queue marks
+ * the command Failed and persists the business reason on the command record.
  *
  * Resource reservation uses optimistic locking with retry so the logic stays
  * correct if multiple workers are ever added.
@@ -33,21 +40,35 @@ export async function handlePrepareFleet(command: Command, ctx: PersistenceConte
   log.info('fleet transitioned to Preparing');
 
   // 3. Attempt to reserve fuel (optimistic-lock retry loop)
-  const reserved = reserveFuel(ctx, fleet.id, command.id, log);
+  const result = reserveFuel(ctx, fleet.id, command.id, log);
 
   // 4. Transition Preparing → Ready | FailedPreparation
   const preparing = ctx.fleets.getOrThrow(fleet.id);
-  const finalState = reserved ? 'Ready' : 'FailedPreparation';
+  const finalState = result.reserved ? 'Ready' : 'FailedPreparation';
   ctx.fleets.update(preparing.id, preparing.version, (f) => ({
     ...f,
     state: transition(f.state, finalState),
   }));
   recordTransition(ctx, preparing, 'Preparing', finalState);
 
-  if (reserved) {
+  if (result.reserved) {
     log.info({ finalState }, 'fleet preparation succeeded — fuel reserved');
   } else {
-    log.warn({ finalState, fuelRequired: fleet.fuelRequired }, 'fleet preparation failed — fuel could not be reserved');
+    log.warn({ finalState, reason: result.reason }, 'fleet preparation failed — throwing so command is marked Failed');
+    throw new PrepareFleetFailureError(result.reason);
+  }
+}
+
+/**
+ * Thrown when PrepareFleet ends in FailedPreparation due to a business
+ * constraint (no pool, insufficient fuel, retries exhausted). The message
+ * is the human-readable reason stored on the command record.
+ */
+export class PrepareFleetFailureError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'PrepareFleetFailureError';
+    Object.setPrototypeOf(this, PrepareFleetFailureError.prototype);
   }
 }
 
@@ -56,24 +77,25 @@ function reserveFuel(
   fleetId: string,
   commandId: string,
   log: Logger,
-): boolean {
+): ReservationResult {
   for (let attempt = 1; attempt <= MAX_RESERVATION_RETRIES; attempt++) {
     const fleet = ctx.fleets.getOrThrow(fleetId);
     const pool  = ctx.resourcePools.getByType('FUEL');
 
     if (!pool) {
       log.error({ commandId }, 'FUEL resource pool not found — cannot reserve fuel');
-      return false;
+      return { reserved: false, reason: 'FUEL resource pool is not configured' };
     }
 
     const available = pool.total - pool.reserved;
 
     if (available < fleet.fuelRequired) {
+      const reason = `Insufficient FUEL: required ${fleet.fuelRequired} units but only ${available} available`;
       log.warn(
         { fuelRequired: fleet.fuelRequired, available, poolTotal: pool.total, poolReserved: pool.reserved },
         'insufficient fuel available for reservation',
       );
-      return false;
+      return { reserved: false, reason };
     }
 
     try {
@@ -85,7 +107,7 @@ function reserveFuel(
         { fuelReserved: fleet.fuelRequired, attempt, poolReservedAfter: pool.reserved + fleet.fuelRequired },
         'fuel reserved successfully',
       );
-      return true;
+      return { reserved: true };
     } catch (err) {
       if (err instanceof ConcurrencyError) {
         log.warn(
@@ -99,9 +121,7 @@ function reserveFuel(
     }
   }
 
-  log.error(
-    { maxAttempts: MAX_RESERVATION_RETRIES },
-    'fuel reservation failed — all retry attempts exhausted',
-  );
-  return false;
+  const reason = `FUEL reservation failed after ${MAX_RESERVATION_RETRIES} concurrent conflict retries`;
+  log.error({ maxAttempts: MAX_RESERVATION_RETRIES }, reason);
+  return { reserved: false, reason };
 }

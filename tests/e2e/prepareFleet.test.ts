@@ -24,7 +24,7 @@ async function waitForCommand(
   app: Express.Application,
   commandId: string,
   timeoutMs = 2000,
-): Promise<{ status: string }> {
+): Promise<{ status: string; failureReason?: string }> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const res = await request(app).get(`/commands/${commandId}`);
@@ -87,7 +87,8 @@ describe('E2E: PrepareFleet flow', () => {
       .send({ type: 'PrepareFleet', payload: { fleetId } });
 
     const done = await waitForCommand(app, cmdRes.body.id);
-    expect(done.status).toBe('Completed'); // command succeeded (handler ran cleanly)
+    expect(done.status).toBe('Failed');
+    expect(done.failureReason).toMatch(/Insufficient FUEL/);
 
     const fleetAfter = await request(app).get(`/fleets/${fleetId}`);
     expect(fleetAfter.body.state).toBe('FailedPreparation');

@@ -212,7 +212,7 @@ describe('PrepareFleet — writes history records', () => {
     ctx.commands.create(cmd);
 
     const { handlePrepareFleet } = await import('../../src/commands/prepareFleetHandler');
-    await handlePrepareFleet(cmd, ctx);
+    await expect(handlePrepareFleet(cmd, ctx)).rejects.toThrow();
 
     const records = ctx.fleetHistory.query();
     expect(records[1]).toMatchObject({ fromState: 'Preparing', toState: 'FailedPreparation' });

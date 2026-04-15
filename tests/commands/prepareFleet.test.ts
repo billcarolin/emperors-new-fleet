@@ -1,5 +1,5 @@
 import { createPersistenceContext } from '../../src/persistence/context';
-import { handlePrepareFleet } from '../../src/commands/prepareFleetHandler';
+import { handlePrepareFleet, PrepareFleetFailureError } from '../../src/commands/prepareFleetHandler';
 
 function makeContext(fuelTotal: number) {
   const ctx = createPersistenceContext();
@@ -37,24 +37,38 @@ describe('handlePrepareFleet', () => {
     expect(ctx.fleets.getOrThrow('f1').state).toBe('Ready');
   });
 
-  it('transitions fleet Docked → FailedPreparation when fuel is insufficient', async () => {
+  it('transitions fleet Docked → FailedPreparation and throws when fuel is insufficient', async () => {
     const ctx = makeContext(100);
     const cmd = makeFleet(ctx, 'f1', 200);
 
-    await handlePrepareFleet(cmd, ctx);
-
+    await expect(handlePrepareFleet(cmd, ctx)).rejects.toThrow(PrepareFleetFailureError);
     expect(ctx.fleets.getOrThrow('f1').state).toBe('FailedPreparation');
   });
 
-  it('transitions fleet Docked → FailedPreparation when no fuel pool exists', async () => {
+  it('failure message includes required and available fuel amounts', async () => {
+    const ctx = makeContext(100);
+    const cmd = makeFleet(ctx, 'f1', 200);
+
+    await expect(handlePrepareFleet(cmd, ctx)).rejects.toThrow(/required 200.*100 available/i);
+  });
+
+  it('transitions fleet Docked → FailedPreparation and throws when no fuel pool exists', async () => {
     const ctx = createPersistenceContext(); // no pool
     ctx.fleets.create({ id: 'f1', version: 0, name: 'F1', shipCount: 5, fuelRequired: 100, state: 'Docked' });
     const cmd = { id: 'cmd1', version: 0, type: 'PrepareFleet', status: 'Queued' as const, payload: { fleetId: 'f1' } };
     ctx.commands.create(cmd);
 
-    await handlePrepareFleet(cmd, ctx);
-
+    await expect(handlePrepareFleet(cmd, ctx)).rejects.toThrow(PrepareFleetFailureError);
     expect(ctx.fleets.getOrThrow('f1').state).toBe('FailedPreparation');
+  });
+
+  it('failure message mentions pool not configured when pool is missing', async () => {
+    const ctx = createPersistenceContext();
+    ctx.fleets.create({ id: 'f1', version: 0, name: 'F1', shipCount: 5, fuelRequired: 100, state: 'Docked' });
+    const cmd = { id: 'cmd1', version: 0, type: 'PrepareFleet', status: 'Queued' as const, payload: { fleetId: 'f1' } };
+    ctx.commands.create(cmd);
+
+    await expect(handlePrepareFleet(cmd, ctx)).rejects.toThrow(/not configured/i);
   });
 
   it('throws on an invalid initial state (not Docked)', async () => {
@@ -73,10 +87,8 @@ describe('handlePrepareFleet', () => {
       const cmd1 = makeFleet(ctx, 'f1', 600);
       const cmd2 = makeFleet(ctx, 'f2', 600);
 
-      // Run both handlers concurrently (Promise.all interleaves at await points).
-      // Because all repository ops are synchronous, they run sequentially here.
-      // This test verifies the business invariant: total reserved ≤ pool.total.
-      await Promise.all([
+      // allSettled so the one that fails (throws) does not abort the other.
+      await Promise.allSettled([
         handlePrepareFleet(cmd1, ctx),
         handlePrepareFleet(cmd2, ctx),
       ]);

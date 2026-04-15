@@ -53,9 +53,10 @@ export function createCommandQueue(ctx: PersistenceContext): CommandQueue {
     const handler = COMMAND_HANDLERS[command.type];
 
     if (!handler) {
-      cmdLog.error('no handler registered for command type — marking Failed');
+      const failureReason = `No handler registered for command type: ${command.type}`;
+      cmdLog.error({ failureReason }, 'no handler registered for command type — marking Failed');
       const current = ctx.commands.getOrThrow(commandId);
-      ctx.commands.update(commandId, current.version, (c) => ({ ...c, status: 'Failed' }));
+      ctx.commands.update(commandId, current.version, (c) => ({ ...c, status: 'Failed', failureReason }));
       return;
     }
 
@@ -67,9 +68,10 @@ export function createCommandQueue(ctx: PersistenceContext): CommandQueue {
       ctx.commands.update(commandId, done.version, (c) => ({ ...c, status: 'Completed' }));
       cmdLog.info('command execution completed');
     } catch (err) {
-      cmdLog.error({ err }, 'command handler threw an error — marking Failed');
+      const failureReason = err instanceof Error ? err.message : 'An unexpected error occurred';
+      cmdLog.error({ err, failureReason }, 'command handler threw an error — marking Failed');
       const done = ctx.commands.getOrThrow(commandId);
-      ctx.commands.update(commandId, done.version, (c) => ({ ...c, status: 'Failed' }));
+      ctx.commands.update(commandId, done.version, (c) => ({ ...c, status: 'Failed', failureReason }));
     }
   }
 

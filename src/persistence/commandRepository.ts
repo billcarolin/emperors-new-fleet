@@ -16,6 +16,8 @@ export interface Command extends VersionedEntity {
   type: string;
   status: CommandStatus;
   payload: Record<string, unknown>;
+  /** Human-readable business reason populated when status is Failed. */
+  failureReason?: string;
 }
 
 export type CommandRepository = Repository<Command>;
