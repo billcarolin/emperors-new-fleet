@@ -1,6 +1,7 @@
 import type { Command } from '../persistence/commandRepository';
 import type { PersistenceContext } from '../persistence/context';
 import { transition } from '../domain/fleetStateMachine';
+import { recordTransition } from './recordTransition';
 
 /**
  * Handles DeployFleetCommand:
@@ -15,4 +16,5 @@ export async function handleDeployFleet(command: Command, ctx: PersistenceContex
     ...f,
     state: transition(f.state, 'Deployed'),
   }));
+  recordTransition(ctx, fleet, 'Ready', 'Deployed');
 }

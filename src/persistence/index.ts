@@ -28,3 +28,10 @@ export {
   type ResourcePoolRepository,
   type ResourceType,
 } from './resourcePoolRepository';
+
+export {
+  createInMemoryFleetHistoryRepository,
+  type FleetHistoryRecord,
+  type FleetHistoryRepository,
+  type ResourceSnapshot,
+} from './fleetHistoryRepository';

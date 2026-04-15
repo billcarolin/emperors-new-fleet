@@ -1,9 +1,11 @@
 import type { CommandRepository } from './commandRepository';
 import type { FleetRepository } from './fleetRepository';
+import type { FleetHistoryRepository } from './fleetHistoryRepository';
 import type { ResourcePoolRepository } from './resourcePoolRepository';
 
 import { createInMemoryCommandRepository } from './commandRepository';
 import { createInMemoryFleetRepository } from './fleetRepository';
+import { createInMemoryFleetHistoryRepository } from './fleetHistoryRepository';
 import { createInMemoryResourcePoolRepository } from './resourcePoolRepository';
 
 /**
@@ -14,6 +16,7 @@ export interface PersistenceContext {
   fleets: FleetRepository;
   commands: CommandRepository;
   resourcePools: ResourcePoolRepository;
+  fleetHistory: FleetHistoryRepository;
 }
 
 /**
@@ -25,5 +28,6 @@ export function createPersistenceContext(): PersistenceContext {
     fleets: createInMemoryFleetRepository(),
     commands: createInMemoryCommandRepository(),
     resourcePools: createInMemoryResourcePoolRepository(),
+    fleetHistory: createInMemoryFleetHistoryRepository(),
   };
 }

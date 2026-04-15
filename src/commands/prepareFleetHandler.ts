@@ -2,6 +2,7 @@ import type { Command } from '../persistence/commandRepository';
 import type { PersistenceContext } from '../persistence/context';
 import { ConcurrencyError } from '../persistence';
 import { transition } from '../domain/fleetStateMachine';
+import { recordTransition } from './recordTransition';
 
 const MAX_RESERVATION_RETRIES = 5;
 
@@ -24,16 +25,19 @@ export async function handlePrepareFleet(command: Command, ctx: PersistenceConte
     ...f,
     state: transition(f.state, 'Preparing'),
   }));
+  recordTransition(ctx, fleet, 'Docked', 'Preparing');
 
   // 3. Attempt to reserve fuel (optimistic-lock retry loop)
   const reserved = reserveFuel(ctx, fleet.id);
 
   // 4. Transition Preparing → Ready | FailedPreparation
   const preparing = ctx.fleets.getOrThrow(fleet.id);
+  const finalState = reserved ? 'Ready' : 'FailedPreparation';
   ctx.fleets.update(preparing.id, preparing.version, (f) => ({
     ...f,
-    state: transition(f.state, reserved ? 'Ready' : 'FailedPreparation'),
+    state: transition(f.state, finalState),
   }));
+  recordTransition(ctx, preparing, 'Preparing', finalState);
 }
 
 function reserveFuel(ctx: PersistenceContext, fleetId: string): boolean {

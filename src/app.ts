@@ -4,6 +4,7 @@ import type { PersistenceContext } from './persistence/context';
 import type { CommandQueue } from './queue/types';
 import { createFleetRouter } from './routes/fleets';
 import { createCommandRouter } from './routes/commands';
+import { createHistoryRouter } from './routes/history';
 
 export function createApp(ctx: PersistenceContext, queue: CommandQueue) {
   const app = express();
@@ -16,6 +17,7 @@ export function createApp(ctx: PersistenceContext, queue: CommandQueue) {
 
   app.use('/fleets', createFleetRouter(ctx));
   app.use('/commands', createCommandRouter(ctx, queue));
+  app.use('/history', createHistoryRouter(ctx));
 
   return app;
 }
