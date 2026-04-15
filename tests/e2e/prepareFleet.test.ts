@@ -19,16 +19,16 @@ function buildApp(fuelTotal = 10_000) {
   return { app, ctx, queue };
 }
 
-/** Poll GET /commands/:id until status is Succeeded or Failed (or timeout). */
+/** Poll GET /commands/:id until status is Completed or Failed (or timeout). */
 async function waitForCommand(
   app: Express.Application,
   commandId: string,
   timeoutMs = 2000,
-): Promise<{ status: string }> {
+): Promise<{ status: string; failureReason?: string }> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const res = await request(app).get(`/commands/${commandId}`);
-    if (res.body.status === 'Succeeded' || res.body.status === 'Failed') {
+    if (res.body.status === 'Completed' || res.body.status === 'Failed') {
       return res.body;
     }
     await new Promise((r) => setTimeout(r, 20));
@@ -64,7 +64,7 @@ describe('E2E: PrepareFleet flow', () => {
 
     // 3. Wait for command to complete
     const done = await waitForCommand(app, commandId);
-    expect(done.status).toBe('Succeeded');
+    expect(done.status).toBe('Completed');
 
     // 4. Fleet should now be Ready
     const fleetAfter = await request(app).get(`/fleets/${fleetId}`);
@@ -87,7 +87,8 @@ describe('E2E: PrepareFleet flow', () => {
       .send({ type: 'PrepareFleet', payload: { fleetId } });
 
     const done = await waitForCommand(app, cmdRes.body.id);
-    expect(done.status).toBe('Succeeded'); // command succeeded (handler ran cleanly)
+    expect(done.status).toBe('Failed');
+    expect(done.failureReason).toMatch(/Insufficient FUEL/);
 
     const fleetAfter = await request(app).get(`/fleets/${fleetId}`);
     expect(fleetAfter.body.state).toBe('FailedPreparation');

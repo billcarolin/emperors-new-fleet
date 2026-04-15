@@ -33,7 +33,7 @@ async function waitForCommand(
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const res = await request(app).get(`/commands/${commandId}`);
-    if (res.body.status === 'Succeeded' || res.body.status === 'Failed') return;
+    if (res.body.status === 'Completed' || res.body.status === 'Failed') return;
     await new Promise((r) => setTimeout(r, 20));
   }
   throw new Error(`Command ${commandId} did not complete within ${timeoutMs}ms`);
@@ -212,7 +212,7 @@ describe('PrepareFleet — writes history records', () => {
     ctx.commands.create(cmd);
 
     const { handlePrepareFleet } = await import('../../src/commands/prepareFleetHandler');
-    await handlePrepareFleet(cmd, ctx);
+    await expect(handlePrepareFleet(cmd, ctx)).rejects.toThrow();
 
     const records = ctx.fleetHistory.query();
     expect(records[1]).toMatchObject({ fromState: 'Preparing', toState: 'FailedPreparation' });
