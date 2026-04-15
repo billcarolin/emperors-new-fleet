@@ -1,8 +1,10 @@
+import type { Logger } from 'pino';
 import type { Command } from '../persistence/commandRepository';
 import type { PersistenceContext } from '../persistence/context';
 import { ConcurrencyError } from '../persistence';
 import { transition } from '../domain/fleetStateMachine';
 import { recordTransition } from './recordTransition';
+import { logger } from '../logger';
 
 const MAX_RESERVATION_RETRIES = 5;
 
@@ -16,9 +18,11 @@ const MAX_RESERVATION_RETRIES = 5;
  */
 export async function handlePrepareFleet(command: Command, ctx: PersistenceContext): Promise<void> {
   const { fleetId } = command.payload as { fleetId: string };
+  const log = logger.child({ commandId: command.id, fleetId, handler: 'PrepareFleet' });
 
   // 1. Validate fleet exists and is Docked
   const fleet = ctx.fleets.getOrThrow(fleetId);
+  log.info({ currentState: fleet.state, fuelRequired: fleet.fuelRequired }, 'preparing fleet');
 
   // 2. Transition Docked → Preparing
   ctx.fleets.update(fleet.id, fleet.version, (f) => ({
@@ -26,9 +30,10 @@ export async function handlePrepareFleet(command: Command, ctx: PersistenceConte
     state: transition(f.state, 'Preparing'),
   }));
   recordTransition(ctx, fleet, 'Docked', 'Preparing');
+  log.info('fleet transitioned to Preparing');
 
   // 3. Attempt to reserve fuel (optimistic-lock retry loop)
-  const reserved = reserveFuel(ctx, fleet.id);
+  const reserved = reserveFuel(ctx, fleet.id, command.id, log);
 
   // 4. Transition Preparing → Ready | FailedPreparation
   const preparing = ctx.fleets.getOrThrow(fleet.id);
@@ -38,29 +43,65 @@ export async function handlePrepareFleet(command: Command, ctx: PersistenceConte
     state: transition(f.state, finalState),
   }));
   recordTransition(ctx, preparing, 'Preparing', finalState);
+
+  if (reserved) {
+    log.info({ finalState }, 'fleet preparation succeeded — fuel reserved');
+  } else {
+    log.warn({ finalState, fuelRequired: fleet.fuelRequired }, 'fleet preparation failed — fuel could not be reserved');
+  }
 }
 
-function reserveFuel(ctx: PersistenceContext, fleetId: string): boolean {
-  for (let attempt = 0; attempt < MAX_RESERVATION_RETRIES; attempt++) {
+function reserveFuel(
+  ctx: PersistenceContext,
+  fleetId: string,
+  commandId: string,
+  log: Logger,
+): boolean {
+  for (let attempt = 1; attempt <= MAX_RESERVATION_RETRIES; attempt++) {
     const fleet = ctx.fleets.getOrThrow(fleetId);
-    const pool = ctx.resourcePools.getByType('FUEL');
+    const pool  = ctx.resourcePools.getByType('FUEL');
 
-    if (!pool) return false;
+    if (!pool) {
+      log.error({ commandId }, 'FUEL resource pool not found — cannot reserve fuel');
+      return false;
+    }
 
     const available = pool.total - pool.reserved;
-    if (available < fleet.fuelRequired) return false;
+
+    if (available < fleet.fuelRequired) {
+      log.warn(
+        { fuelRequired: fleet.fuelRequired, available, poolTotal: pool.total, poolReserved: pool.reserved },
+        'insufficient fuel available for reservation',
+      );
+      return false;
+    }
 
     try {
       ctx.resourcePools.update(pool.id, pool.version, (p) => ({
         ...p,
         reserved: p.reserved + fleet.fuelRequired,
       }));
+      log.info(
+        { fuelReserved: fleet.fuelRequired, attempt, poolReservedAfter: pool.reserved + fleet.fuelRequired },
+        'fuel reserved successfully',
+      );
       return true;
     } catch (err) {
-      if (err instanceof ConcurrencyError) continue;
+      if (err instanceof ConcurrencyError) {
+        log.warn(
+          { attempt, maxAttempts: MAX_RESERVATION_RETRIES, poolId: pool.id },
+          'concurrency conflict during fuel reservation — retrying',
+        );
+        continue;
+      }
+      log.error({ err, attempt }, 'unexpected error during fuel reservation');
       throw err;
     }
   }
 
-  return false; // All retries exhausted
+  log.error(
+    { maxAttempts: MAX_RESERVATION_RETRIES },
+    'fuel reservation failed — all retry attempts exhausted',
+  );
+  return false;
 }

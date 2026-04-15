@@ -1,6 +1,9 @@
 import { Router } from 'express';
 
 import type { PersistenceContext } from '../persistence/context';
+import { logger } from '../logger';
+
+const log = logger.child({ module: 'routes/history' });
 
 export function createHistoryRouter(ctx: PersistenceContext): Router {
   const router = Router();
@@ -26,6 +29,7 @@ export function createHistoryRouter(ctx: PersistenceContext): Router {
     if (from !== undefined) {
       fromDate = new Date(from);
       if (isNaN(fromDate.getTime())) {
+        log.warn({ from }, 'GET /history rejected: invalid `from` date');
         return res.status(400).json({ error: '`from` must be a valid ISO-8601 date string' });
       }
     }
@@ -33,11 +37,13 @@ export function createHistoryRouter(ctx: PersistenceContext): Router {
     if (to !== undefined) {
       toDate = new Date(to);
       if (isNaN(toDate.getTime())) {
+        log.warn({ to }, 'GET /history rejected: invalid `to` date');
         return res.status(400).json({ error: '`to` must be a valid ISO-8601 date string' });
       }
     }
 
     if (fromDate && toDate && fromDate > toDate) {
+      log.warn({ from, to }, 'GET /history rejected: `from` is after `to`');
       return res.status(400).json({ error: '`from` must not be after `to`' });
     }
 
